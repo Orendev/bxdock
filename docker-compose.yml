@@ -1,0 +1,193 @@
+version: "3.7"
+
+services:
+  nginx:
+    build:
+      context: ./docker/nginx
+      args:
+        - PHP_UPSTREAM_CONTAINER=${NGINX_PHP_UPSTREAM_CONTAINER}
+        - PHP_UPSTREAM_PORT=${NGINX_PHP_UPSTREAM_PORT}
+        - http_proxy
+        - https_proxy
+        - no_proxy
+    depends_on:
+      - php-fpm
+    volumes:
+      - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
+      - ${NGINX_SITES_PATH}:/etc/nginx/sites-available
+      - ${NGINX_SSL_PATH}:/etc/nginx/ssl
+    ports:
+      - "${NGINX_HOST_HTTP_PORT}:80"
+      - "${NGINX_HOST_HTTPS_PORT}:443"
+      - "${VARNISH_BACKEND_PORT}:81"
+    networks:
+      - frontend
+      - backend
+
+  php-fpm:
+    env_file: ./.env
+    build:
+      context: ./docker/php-fpm
+      args:
+        - BXDOCK_PHP_VERSION=${PHP_VERSION}
+        - BASE_IMAGE_TAG_PREFIX=${PHP_FPM_BASE_IMAGE_TAG_PREFIX}
+        - UBUNTU_SOURCE=${UBUNTU_SOURCE}
+        - INSTALL_XDEBUG=${CLI_INSTALL_XDEBUG}
+        - PUID=${PHP_FPM_PUID}
+        - PGID=${PHP_FPM_PGID}
+        - LOCALE=${PHP_FPM_DEFAULT_LOCALE}
+        - http_proxy
+        - https_proxy
+        - no_proxy
+    links:
+      - mysql
+      - memcached
+      - docker-in-docker
+    depends_on:
+      - mysql
+      - memcached
+      - php-cli
+    volumes:
+      - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - docker-in-docker:/certs/client
+    expose:
+      - "9000"
+    extra_hosts:
+      - "dockerhost:${DOCKER_HOST_IP}"
+    environment:
+      DOCKER_HOST: "tcp://docker-in-docker:2376"
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_TLS_CERTDIR: "/certs"
+      DOCKER_CERT_PATH: "/certs/client"
+    networks:
+      - backend
+
+  php-cli:
+    env_file: ./.env
+    build:
+      context: ./docker/php-cli
+      args:
+        - BXDOCK_PHP_VERSION=${PHP_VERSION}
+        - BASE_IMAGE_TAG_PREFIX=${PHP_FPM_BASE_IMAGE_TAG_PREFIX}
+        - UBUNTU_SOURCE=${UBUNTU_SOURCE}
+        - COMPOSER_GLOBAL_INSTALL=${CLI_COMPOSER_GLOBAL_INSTALL}
+        - COMPOSER_AUTH=${CLI_COMPOSER_AUTH}
+        - COMPOSER_REPO_PACKAGIST=${CLI_COMPOSER_REPO_PACKAGIST}
+        - INSTALL_NODE=${CLI_INSTALL_NODE}
+        - NPM_REGISTRY=${CLI_NPM_REGISTRY}
+        - INSTALL_PNPM=${CLI_INSTALL_PNPM}
+        - INSTALL_YARN=${CLI_INSTALL_YARN}
+        - INSTALL_V8JS=${CLI_INSTALL_V8JS}
+        - INSTALL_SSH=${CLI_INSTALL_WORKSPACE_SSH}
+        - INSTALL_XDEBUG=${CLI_INSTALL_XDEBUG}
+        - INSTALL_SUPERVISOR=${CLI_INSTALL_SUPERVISOR}
+        - INSTALL_POWERLINE=${CLI_INSTALL_POWERLINE}
+        - INSTALL_PYTHON=${CLI_INSTALL_PYTHON}
+        - INSTALL_PYTHON3=${CLI_INSTALL_PYTHON3}
+        - INSTALL_NPM_GULP=${CLI_INSTALL_NPM_GULP}
+    links:
+      - mysql
+      - memcached
+      - docker-in-docker
+    depends_on:
+      - mysql
+      - memcached
+    volumes:
+      - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
+      - docker-in-docker:/certs/client
+      - ./php-cli/supervisord.d:/etc/supervisord.d
+    extra_hosts:
+      - "dockerhost:${DOCKER_HOST_IP}"
+    ports:
+      - "${CLI_SSH_PORT}:22"
+      - "${CLI_BROWSERSYNC_HOST_PORT}:3000"
+      - "${CLI_BROWSERSYNC_UI_HOST_PORT}:3001"
+      - "${CLI_VUE_CLI_SERVE_HOST_PORT}:8080"
+      - "${CLI_VUE_CLI_UI_HOST_PORT}:8000"
+    tty: true
+    environment:
+      PHP_IDE_CONFIG: "${PHP_IDE_CONFIG}"
+      DOCKER_HOST: "tcp://docker-in-docker:2376"
+      DOCKER_TLS_VERIFY: "1"
+      DOCKER_TLS_CERTDIR: "/certs"
+      DOCKER_CERT_PATH: "/certs/client"
+    networks:
+      - frontend
+      - backend
+
+  mysql:
+    build:
+      context: ./docker/mysql
+      args:
+        - MYSQL_VERSION=${MYSQL_VERSION}
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - TZ=${CLI_TIMEZONE}
+    volumes:
+      - 'bxmysql:/var/lib/mysql'
+      - ${MYSQL_ENTRYPOINT_INITDB}:/docker-entrypoint-initdb.d
+    ports:
+      - "${MYSQL_PORT}:3306"
+    networks:
+      - backend
+
+  memcached:
+    image: memcached:1.5-alpine
+    entrypoint:
+      - memcached
+      - --memory-limit=2048m
+      - --max-item-size=128m
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - backend
+    restart: unless-stopped
+
+  sphinx:
+    build:
+      context: ./docker/sphinx
+    links:
+      - mysql
+    depends_on:
+      - mysql
+    networks:
+      - backend
+    restart: unless-stopped
+
+  maildev:
+    build: ./docker/maildev
+    ports:
+      - "${MAILDEV_HTTP_PORT}:80"
+      - "${MAILDEV_SMTP_PORT}:25"
+    networks:
+      - frontend
+      - backend
+  
+  docker-in-docker:
+    image: docker:19.03-dind
+    environment:
+      DOCKER_TLS_SAN: DNS:docker-in-docker
+    privileged: true
+    volumes:
+      - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}
+      - docker-in-docker:/certs/client
+    expose:
+      - 2375
+    networks:
+      - backend
+
+networks:
+  frontend:
+    driver: ${NETWORKS_DRIVER}
+  backend:
+    driver: ${NETWORKS_DRIVER}
+
+volumes:
+  bxmysql:
+    driver: ${VOLUMES_DRIVER}
+  docker-in-docker:
+    driver: ${VOLUMES_DRIVER}

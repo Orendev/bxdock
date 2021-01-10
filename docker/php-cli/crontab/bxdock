@@ -1,0 +1,2 @@
+*/1 * * * * bxdock /usr/bin/php -f /var/www/bitrix/modules/main/tools/cron_events.php >> /dev/null 2>&1
+
