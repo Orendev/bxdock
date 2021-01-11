@@ -25,6 +25,7 @@ docker-stop:
 docker-down:
 	@make mysql-dump
 	@docker-compose down -v
+	@make clean
 
 phpmd:
 	docker-compose exec --user=bxdock php-cli bash
@@ -41,3 +42,7 @@ mysql-dump:
 
 mysql-restore:
 	@docker exec -i $(shell docker-compose ps -q mysql) mysql -u"$(MYSQL_ROOT_USER)" -p"$(MYSQL_ROOT_PASSWORD)" < $(MYSQL_DUMPS_DIR)/db.sql 2>/dev/null
+
+
+clean:
+	@sudo rm -Rf ./docker/nginx/ssl/*
