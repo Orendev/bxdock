@@ -7,27 +7,27 @@ MYSQL_ROOT_USER=root
 MYSQL_ROOT_PASSWORD=root
 DOCKER_IMAGE=orendev/php-base:latest-7.3
 
-docker-build:
+build:
 	@chmod +x ./build.sh
 	@./build.sh
 	@docker build . --file ./docker/php-base/Dockerfile --tag "${DOCKER_IMAGE}"
 	@docker-compose build
 
-docker-push:
+push:
 	@docker push "${DOCKER_IMAGE}"
 
-docker-start:
+up:
 	@docker-compose up -d
 
-docker-stop:
+stop:
 	@docker-compose stop
 
-docker-down:
+down:
 	@make mysql-dump
 	@docker-compose down -v
 	@make clean
 
-phpmd:
+php:
 	docker-compose exec --user=bxdock php-cli bash
 
 composer-in:

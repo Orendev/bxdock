@@ -11,19 +11,19 @@
 
 ``` make
 # Build docker:
-make docker-build
+make build
 
 # Go to the server with hot reload at http://localhost/:
-make docker-start
+make up
 
 # Docker stop
-make docker-stop
+make stop
 
 # Docker down
-make docker-down
+make down
 
 # docker-compose exec
-make phpmd
+make php
 ```
 
 ## Project Structure:
