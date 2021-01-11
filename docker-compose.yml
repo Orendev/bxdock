@@ -30,6 +30,8 @@ services:
     build:
       context: ./docker/php-fpm
       args:
+        - TZ=${CLI_TIMEZONE}
+        - BXDOCK_MBSTRING_OVERLOAD=${MBSTRING_OVERLOAD}
         - BXDOCK_PHP_VERSION=${PHP_VERSION}
         - BASE_IMAGE_TAG_PREFIX=${PHP_FPM_BASE_IMAGE_TAG_PREFIX}
         - UBUNTU_SOURCE=${UBUNTU_SOURCE}
@@ -68,6 +70,8 @@ services:
     build:
       context: ./docker/php-cli
       args:
+        - TZ=${CLI_TIMEZONE}
+        - BXDOCK_MBSTRING_OVERLOAD=${MBSTRING_OVERLOAD}
         - BXDOCK_PHP_VERSION=${PHP_VERSION}
         - BASE_IMAGE_TAG_PREFIX=${PHP_FPM_BASE_IMAGE_TAG_PREFIX}
         - UBUNTU_SOURCE=${UBUNTU_SOURCE}
