@@ -45,23 +45,14 @@ services:
     links:
       - mysql
       - memcached
-      - docker-in-docker
     depends_on:
       - mysql
       - memcached
       - php-cli
     volumes:
       - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
-      - docker-in-docker:/certs/client
     expose:
       - "9000"
-    extra_hosts:
-      - "dockerhost:${DOCKER_HOST_IP}"
-    environment:
-      DOCKER_HOST: "tcp://docker-in-docker:2376"
-      DOCKER_TLS_VERIFY: "1"
-      DOCKER_TLS_CERTDIR: "/certs"
-      DOCKER_CERT_PATH: "/certs/client"
     networks:
       - backend
 
@@ -93,13 +84,11 @@ services:
     links:
       - mysql
       - memcached
-      - docker-in-docker
     depends_on:
       - mysql
       - memcached
     volumes:
       - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}${APP_CODE_CONTAINER_FLAG}
-      - docker-in-docker:/certs/client
       - ./docker/php-cli/supervisord.d:/etc/supervisord.d
     extra_hosts:
       - "dockerhost:${DOCKER_HOST_IP}"
@@ -112,10 +101,6 @@ services:
     tty: true
     environment:
       PHP_IDE_CONFIG: "${PHP_IDE_CONFIG}"
-      DOCKER_HOST: "tcp://docker-in-docker:2376"
-      DOCKER_TLS_VERIFY: "1"
-      DOCKER_TLS_CERTDIR: "/certs"
-      DOCKER_CERT_PATH: "/certs/client"
     networks:
       - frontend
       - backend
@@ -132,7 +117,7 @@ services:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - TZ=${CLI_TIMEZONE}
     volumes:
-      - 'bxmysql:/var/lib/mysql'
+      - "bxmysql:/var/lib/mysql"
       - ${MYSQL_ENTRYPOINT_INITDB}:/docker-entrypoint-initdb.d
     ports:
       - "${MYSQL_PORT}:3306"
@@ -170,20 +155,93 @@ services:
     networks:
       - frontend
       - backend
-  
-  docker-in-docker:
-    image: docker:19.03-dind
+  phpmyadmin:
+    depends_on:
+      - mysql
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    ports:
+      - "8088:80"
     environment:
-      DOCKER_TLS_SAN: DNS:docker-in-docker
-    privileged: true
-    volumes:
-      - ${APP_CODE_PATH_HOST}public:${APP_CODE_PATH_CONTAINER}
-      - docker-in-docker:/certs/client
-    expose:
-      - 2375
+      PMA_HOST: mysql
+      MYSQL_ROOT_PASSWORD: root
     networks:
       - backend
-
+  rabbitmq:
+    build: ./docker/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+      - "15671:15671"
+    privileged: true
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    hostname: laradock-rabbitmq
+    volumes:
+      - bxrabbitmq:/var/lib/rabbitmq
+    depends_on:
+      - php-fpm
+      - php-cli
+    networks:
+      - backend
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
+    volumes:
+      - type: bind
+        source: ./docker/elasticsearch/config/elasticsearch.yml
+        target: /usr/share/elasticsearch/config/elasticsearch.yml
+        read_only: true
+      - type: volume
+        source: elasticsearch
+        target: /usr/share/elasticsearch/data
+    ports:
+      - "9200:9200" #Elasticsearch HTTP
+      - "9300:9300" #TCP-транспорт Elasticsearch
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+      ELASTIC_PASSWORD: changeme
+      discovery.type: single-node
+    depends_on:
+      - php-fpm
+      - php-cli
+    networks:
+      - backend
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.12.0
+    volumes:
+      - type: bind
+        source: ./docker/logstash/config/logstash.yml
+        target: /usr/share/logstash/config/logstash.yml
+        read_only: true
+      - type: bind
+        source: ./docker/logstash/pipeline
+        target: /usr/share/logstash/pipeline
+        read_only: true
+    ports:
+      - "5044:5044" # ввод данных Logstash Beats
+      - "5000:5000/tcp" #вход TCP Logstash
+      - "5000:5000/udp"
+      - "9600:9600" #API мониторинга Logstash
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - backend
+    depends_on:
+      - elasticsearch
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.12.0
+    volumes:
+      - type: bind
+        source: ./docker/kibana/config/kibana.yml
+        target: /usr/share/kibana/config/kibana.yml
+        read_only: true
+    ports:
+      - "5601:5601" #Кибана
+    networks:
+      - backend
+    depends_on:
+      - elasticsearch
 networks:
   frontend:
     driver: ${NETWORKS_DRIVER}
@@ -193,5 +251,7 @@ networks:
 volumes:
   bxmysql:
     driver: ${VOLUMES_DRIVER}
-  docker-in-docker:
+  bxrabbitmq:
+    driver: ${VOLUMES_DRIVER}
+  elasticsearch:
     driver: ${VOLUMES_DRIVER}

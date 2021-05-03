@@ -1,17 +1,19 @@
-FROM orendev/php-base:latest-7.3
+ARG BXDOCK_PHP_VERSION
+ARG BASE_IMAGE_TAG_PREFIX=latest
+FROM orendev/php-base:${BASE_IMAGE_TAG_PREFIX}-${BXDOCK_PHP_VERSION}
 
 LABEL maintainer="Adelshin Abai <info@orendev.ru>"
 
 # Set Environment Variables
 ENV DEBIAN_FRONTEND noninteractive
 
-ADD php.ini /etc/php/7.3/cli/conf.d/90-php.ini
+ADD php.ini /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/90-php.ini
 
-ARG BXDOCK_MBSTRING_OVERLOAD=2
+ARG BXDOCK_MBSTRING_OVERLOAD=0
 ARG TZ=Asia/Yekaterinburg
-RUN echo "" >> /etc/php/7.3/cli/conf.d/90-php.ini \
-    && echo "mbstring.func_overload=${BXDOCK_MBSTRING_OVERLOAD}" >> /etc/php/7.3/cli/conf.d/90-php.ini \
-    && echo "date.timezone=${TZ}" >> /etc/php/7.3/cli/conf.d/90-php.ini
+RUN echo "" >> /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/90-php.ini \
+    && echo "mbstring.func_overload=${BXDOCK_MBSTRING_OVERLOAD}" >> /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/90-php.ini \
+    && echo "date.timezone=${TZ}" >> /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/90-php.ini
 
 # Start as root
 USER root
@@ -34,24 +36,24 @@ RUN set -xe; \
     useradd -u ${PUID} -g bxdock -m bxdock -G docker_env && \
     usermod -p "*" bxdock -s /bin/bash && \
     apt-get install -yqq \
-      apt-utils \
-      #
-      #--------------------------------------------------------------------------
-      # Mandatory Software's Installation
-      #--------------------------------------------------------------------------
-      #
-      # Mandatory Software's such as ("php-cli", "git", "vim", ....) are
-      # installed on the base image 'bxdock/workspace' image. If you want
-      # to add more Software's or remove existing one, you need to edit the
-      # base image (https://github.com/orendev/bxdock).
-      #
-      #
-      libzip-dev zip unzip \
-      # Install the zip extension
-      php7.3-zip \
-      # nasm
-      nasm && \
-      php -m | grep -q 'zip'
+    apt-utils \
+    #
+    #--------------------------------------------------------------------------
+    # Mandatory Software's Installation
+    #--------------------------------------------------------------------------
+    #
+    # Mandatory Software's such as ("php-cli", "git", "vim", ....) are
+    # installed on the base image 'bxdock/workspace' image. If you want
+    # to add more Software's or remove existing one, you need to edit the
+    # base image (https://github.com/orendev/bxdock).
+    #
+    #
+    libzip-dev zip unzip \
+    # Install the zip extension
+    php${BXDOCK_PHP_VERSION}-zip \
+    # nasm
+    nasm && \
+    php -m | grep -q 'zip'
 
 ###########################################################################
 # Set Timezone
@@ -76,14 +78,14 @@ RUN sed -i 's/\r//' /root/aliases.sh && \
     echo "" >> ~/.bashrc && \
     echo "# Load Custom Aliases" >> ~/.bashrc && \
     echo "source ~/aliases.sh" >> ~/.bashrc && \
-	echo "" >> ~/.bashrc
+    echo "" >> ~/.bashrc
 
 USER bxdock
 
 RUN echo "" >> ~/.bashrc && \
     echo "# Load Custom Aliases" >> ~/.bashrc && \
     echo "source ~/aliases.sh" >> ~/.bashrc && \
-	echo "" >> ~/.bashrc
+    echo "" >> ~/.bashrc
 
 ###########################################################################
 # Composer:
@@ -113,7 +115,7 @@ ENV COMPOSER_GLOBAL_INSTALL ${COMPOSER_GLOBAL_INSTALL}
 RUN if [ ${COMPOSER_GLOBAL_INSTALL} = true ]; then \
     # run the install
     composer global install \
-;fi
+    ;fi
 
 # Check if auth file is disabled
 ARG COMPOSER_AUTH=false
@@ -122,14 +124,14 @@ ENV COMPOSER_AUTH ${COMPOSER_AUTH}
 RUN if [ ${COMPOSER_AUTH} = false ]; then \
     # remove the file
     rm /home/bxdock/.composer/auth.json \
-;fi
+    ;fi
 
 ARG COMPOSER_REPO_PACKAGIST
 ENV COMPOSER_REPO_PACKAGIST ${COMPOSER_REPO_PACKAGIST}
 
 RUN if [ ${COMPOSER_REPO_PACKAGIST} ]; then \
     composer config -g repo.packagist composer ${COMPOSER_REPO_PACKAGIST} \
-;fi
+    ;fi
 
 # Export composer vendor path
 RUN echo "" >> ~/.bashrc && \
@@ -163,20 +165,20 @@ RUN chmod -R 644 /etc/cron.d
 USER root
 
 ARG INSTALL_XDEBUG=false
-
+ARG BXDOCK_PHP_VERSION
 
 RUN if [ ${INSTALL_XDEBUG} = true ]; then \
     # Load the xdebug extension only with phpunit commands
-    apt-get install -y php7.3-xdebug && \
-    sed -i 's/^;//g' /etc/php/7.3/cli/conf.d/20-xdebug.ini \
-;fi
+    apt-get install -y php${BXDOCK_PHP_VERSION}-xdebug && \
+    sed -i 's/^;//g' /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/20-xdebug.ini \
+    ;fi
 
 # ADD for REMOTE debugging
-COPY ./xdebug.ini /etc/php/7.3/cli/conf.d/xdebug.ini
+COPY ./xdebug.ini /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/xdebug.ini
 
-RUN sed -i "s/xdebug.remote_autostart=0/xdebug.remote_autostart=1/" /etc/php/7.3/cli/conf.d/xdebug.ini && \
-    sed -i "s/xdebug.remote_enable=0/xdebug.remote_enable=1/" /etc/php/7.3/cli/conf.d/xdebug.ini && \
-    sed -i "s/xdebug.cli_color=0/xdebug.cli_color=1/" /etc/php/7.3/cli/conf.d/xdebug.ini
+RUN sed -i "s/xdebug.remote_autostart=0/xdebug.remote_autostart=1/" /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/xdebug.ini && \
+    sed -i "s/xdebug.remote_enable=0/xdebug.remote_enable=1/" /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/xdebug.ini && \
+    sed -i "s/xdebug.cli_color=0/xdebug.cli_color=1/" /etc/php/${BXDOCK_PHP_VERSION}/cli/conf.d/xdebug.ini
 
 
 ###########################################################################
@@ -191,14 +193,14 @@ COPY insecure_id_rsa.pub /tmp/id_rsa.pub
 RUN if [ ${INSTALL_SSH} = true ]; then \
     rm -f /etc/service/sshd/down && \
     cat /tmp/id_rsa.pub >> /root/.ssh/authorized_keys \
-        && cat /tmp/id_rsa.pub >> /root/.ssh/id_rsa.pub \
-        && cat /tmp/id_rsa >> /root/.ssh/id_rsa \
-        && rm -f /tmp/id_rsa* \
-        && chmod 644 /root/.ssh/authorized_keys /root/.ssh/id_rsa.pub \
+    && cat /tmp/id_rsa.pub >> /root/.ssh/id_rsa.pub \
+    && cat /tmp/id_rsa >> /root/.ssh/id_rsa \
+    && rm -f /tmp/id_rsa* \
+    && chmod 644 /root/.ssh/authorized_keys /root/.ssh/id_rsa.pub \
     && chmod 400 /root/.ssh/id_rsa \
     && cp -rf /root/.ssh /home/bxdock \
     && chown -R bxdock:bxdock /home/bxdock/.ssh \
-;fi
+    ;fi
 
 # MSMTP
 #USER root
@@ -218,7 +220,7 @@ RUN chmod 777 /etc/msmtprc &&\
 USER bxdock
 ###########################################################################
 # Node / NVM:
-###########################################################################    
+###########################################################################
 # Check if NVM needs to be installed
 ARG NODE_VERSION=node
 ENV NODE_VERSION ${NODE_VERSION}
@@ -237,27 +239,27 @@ RUN if [ ${INSTALL_NODE} = true ]; then \
     # Install nvm (A Node Version Manager)
     mkdir -p $NVM_DIR && \
     curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.11/install.sh | bash \
-        && . $NVM_DIR/nvm.sh \
-        && nvm install ${NODE_VERSION} \
-        && nvm use ${NODE_VERSION} \
-        && nvm alias ${NODE_VERSION} \
-        && if [ ${NPM_REGISTRY} ]; then \
-        npm config set registry ${NPM_REGISTRY} \
-        ;fi \
-        && if [ ${INSTALL_NPM_GULP} = true ]; then \
-        npm install -g gulp \
-        ;fi \
-        && if [ ${INSTALL_NPM_BOWER} = true ]; then \
-        npm install -g bower \
-        ;fi \
-        && if [ ${INSTALL_NPM_VUE_CLI} = true ]; then \
-        npm install -g @vue/cli \
-        ;fi \
-        && if [ ${INSTALL_NPM_ANGULAR_CLI} = true ]; then \
-        npm install -g @angular/cli \
-        ;fi \
-        && ln -s `npm bin --global` /home/bxdock/.node-bin \
-;fi
+    && . $NVM_DIR/nvm.sh \
+    && nvm install ${NODE_VERSION} \
+    && nvm use ${NODE_VERSION} \
+    && nvm alias ${NODE_VERSION} \
+    && if [ ${NPM_REGISTRY} ]; then \
+    npm config set registry ${NPM_REGISTRY} \
+    ;fi \
+    && if [ ${INSTALL_NPM_GULP} = true ]; then \
+    npm install -g gulp \
+    ;fi \
+    && if [ ${INSTALL_NPM_BOWER} = true ]; then \
+    npm install -g bower \
+    ;fi \
+    && if [ ${INSTALL_NPM_VUE_CLI} = true ]; then \
+    npm install -g @vue/cli \
+    ;fi \
+    && if [ ${INSTALL_NPM_ANGULAR_CLI} = true ]; then \
+    npm install -g @angular/cli \
+    ;fi \
+    && ln -s `npm bin --global` /home/bxdock/.node-bin \
+    ;fi
 
 # Wouldn't execute when added to the RUN statement in the above block
 # Source NVM when loading bash since ~/.profile isn't loaded on non-login shell
@@ -265,7 +267,7 @@ RUN if [ ${INSTALL_NODE} = true ]; then \
     echo "" >> ~/.bashrc && \
     echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc && \
     echo '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm' >> ~/.bashrc \
-;fi
+    ;fi
 
 # Add NVM binaries to root's .bashrc
 USER root
@@ -274,7 +276,7 @@ RUN if [ ${INSTALL_NODE} = true ]; then \
     echo "" >> ~/.bashrc && \
     echo 'export NVM_DIR="/home/bxdock/.nvm"' >> ~/.bashrc && \
     echo '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm' >> ~/.bashrc \
-;fi
+    ;fi
 
 # Add PATH for node
 ENV PATH $PATH:/home/bxdock/.node-bin
@@ -291,11 +293,11 @@ RUN if [ ${INSTALL_NODE} = true ]; then \
     ln -s $NODE_MODS_DIR/vue-cli/bin/vue /usr/local/bin/vue && \
     ln -s $NODE_MODS_DIR/vue-cli/bin/vue-init /usr/local/bin/vue-init && \
     ln -s $NODE_MODS_DIR/vue-cli/bin/vue-list /usr/local/bin/vue-list \
-;fi
+    ;fi
 
 RUN if [ ${NPM_REGISTRY} ]; then \
     . ~/.bashrc && npm config set registry ${NPM_REGISTRY} \
-;fi
+    ;fi
 
 ###########################################################################
 # PNPM:
@@ -307,7 +309,7 @@ ARG INSTALL_PNPM=false
 
 RUN if [ ${INSTALL_PNPM} = true ]; then \
     npx pnpm add -g pnpm \
-;fi
+    ;fi
 
 
 ###########################################################################
@@ -323,13 +325,13 @@ ENV YARN_VERSION ${YARN_VERSION}
 RUN if [ ${INSTALL_YARN} = true ]; then \
     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" && \
     if [ ${YARN_VERSION} = "latest" ]; then \
-        curl -o- -L https://yarnpkg.com/install.sh | bash; \
+    curl -o- -L https://yarnpkg.com/install.sh | bash; \
     else \
-        curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version ${YARN_VERSION}; \
+    curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version ${YARN_VERSION}; \
     fi && \
     echo "" >> ~/.bashrc && \
     echo 'export PATH="$HOME/.yarn/bin:$PATH"' >> ~/.bashrc \
-;fi
+    ;fi
 
 # Add YARN binaries to root's .bashrc
 USER root
@@ -338,7 +340,7 @@ RUN if [ ${INSTALL_YARN} = true ]; then \
     echo "" >> ~/.bashrc && \
     echo 'export YARN_DIR="/home/bxdock/.yarn"' >> ~/.bashrc && \
     echo 'export PATH="$YARN_DIR/bin:$PATH"' >> ~/.bashrc \
-;fi
+    ;fi
 
 # Add PATH for YARN
 ENV PATH $PATH:/home/bxdock/.yarn/bin
@@ -353,18 +355,18 @@ USER root
 ARG INSTALL_V8JS=false
 
 RUN set -xe; \
-  if [ ${INSTALL_V8JS} = true ]; then \
+    if [ ${INSTALL_V8JS} = true ]; then \
     add-apt-repository -y ppa:pinepain/libv8-archived \
     && apt-get update -yqq \
     && apt-get install -y libv8-5.4 && \
     if [ $(php -r "echo PHP_MAJOR_VERSION;") = "5" ]; then \
-      pecl install v8js-0.6.4; \
+    pecl install v8js-0.6.4; \
     else \
-      pecl install v8js; \
+    pecl install v8js; \
     fi \
-    && echo "extension=v8js.so" >> /etc/php/7.3/cli/php.ini \
+    && echo "extension=v8js.so" >> /etc/php/${BXDOCK_PHP_VERSION}/cli/php.ini \
     && php -m | grep -q 'v8js' \
-  ;fi
+    ;fi
 ###########################################################################
 # PYTHON2:
 ###########################################################################
@@ -372,11 +374,11 @@ RUN set -xe; \
 ARG INSTALL_PYTHON=false
 
 RUN if [ ${INSTALL_PYTHON} = true ]; then \
-  apt-get update -yqq \
-  && apt-get -y install python python-pip python-dev build-essential  \
-  && python -m pip install --upgrade pip  \
-  && python -m pip install --upgrade virtualenv \
-;fi
+    apt-get update -yqq \
+    && apt-get -y install python python-pip python-dev build-essential  \
+    && python -m pip install --upgrade pip  \
+    && python -m pip install --upgrade virtualenv \
+    ;fi
 
 ###########################################################################
 # PYTHON3:
@@ -385,11 +387,11 @@ RUN if [ ${INSTALL_PYTHON} = true ]; then \
 ARG INSTALL_PYTHON3=false
 
 RUN if [ ${INSTALL_PYTHON3} = true ]; then \
-  apt-get update -yqq \
-  && apt-get -y install python3 python3-pip python3-dev build-essential  \
-  && python3 -m pip install --upgrade --force-reinstall pip  \
-  && python3 -m pip install --upgrade virtualenv \
-;fi
+    apt-get update -yqq \
+    && apt-get -y install python3 python3-pip python3-dev build-essential  \
+    && python3 -m pip install --upgrade --force-reinstall pip  \
+    && python3 -m pip install --upgrade virtualenv \
+    ;fi
 ###########################################################################
 # POWERLINE:
 ###########################################################################
@@ -402,8 +404,8 @@ RUN if [ ${INSTALL_POWERLINE} = true ]; then \
     python -m pip install --upgrade powerline-status && \
     echo "" >> /etc/bash.bashrc && \
     echo ". /usr/local/lib/python2.7/dist-packages/powerline/bindings/bash/powerline.sh" >> /etc/bash.bashrc \
-  ;fi \
-;fi
+    ;fi \
+    ;fi
 ###########################################################################
 # SUPERVISOR:
 ###########################################################################
@@ -415,8 +417,8 @@ RUN if [ ${INSTALL_SUPERVISOR} = true ]; then \
     echo_supervisord_conf > /etc/supervisord.conf && \
     sed -i 's/\;\[include\]/\[include\]/g' /etc/supervisord.conf && \
     sed -i 's/\;files\s.*/files = supervisord.d\/*.conf/g' /etc/supervisord.conf \
-  ;fi \
-;fi
+    ;fi \
+    ;fi
 USER bxdock
 #
 #--------------------------------------------------------------------------
